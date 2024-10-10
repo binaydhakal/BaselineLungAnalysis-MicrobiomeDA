@@ -8,9 +8,10 @@
 ![image](https://github.com/user-attachments/assets/49a1f578-eb95-45f6-9df5-4584d8a7f37f)
 
 
-## Variance Analysis: 
+## Feature Variance Analysis: 
 
-![image](https://github.com/user-attachments/assets/4b23fc5d-b1de-4527-a380-cb08076bdf1b)
+![image](https://github.com/user-attachments/assets/5c6bd48a-ef3f-489c-8ad6-5e869274afa5)
+
 
 ## Top 5 Relevant Taxa: 
 
