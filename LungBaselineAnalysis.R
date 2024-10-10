@@ -1,7 +1,5 @@
 library(mia)
-library(vegan)
-library(ggpubr)
-library(tidyverse)
+library(miaViz)
 library(scater)
 library(lubridate)
 library(dplyr)
@@ -17,13 +15,14 @@ require(ggrepel)
 library(ecodist)
 library(pheatmap)
 library(dendextend)
-#library(ANCOMBC)
-#library(ALDEx2)
+library(tidySummarizedExperiment)
+library(ANCOMBC)
+library(ALDEx2)
 library(knitr)
 library(reshape2)
 library(palmerpenguins)
 library(ggforce)
-#library(DESeq2)
+library(DESeq2)
 library(scran)
 library(ggordiplots)
 library(bluster)
@@ -37,6 +36,40 @@ library(data.table)
 library(GGally)
 library(networkD3)
 library(htmlwidgets)
+library(jaccard)
+library(rCausalMGM)
+library(bnstruct)
+library(rstatix)
+library(ggbeeswarm)
+library(metan)
+library(ggsankey)
+library(ggsci)
+library(caret)
+library(grid)
+library(shadowtext)
+library(readxl)
+library(psych)
+library(stargazer)
+library(epitools)
+library(tidyr)
+library(gdata)
+library(stringr)
+library(mice)
+library(readr)
+library(Partiallyoverlapping)
+library(permute)
+library(haven)
+library(ggcorrplot)
+library(nlme)
+library(openxlsx)
+library(DataExplorer)
+library(cowplot)
+library(ggrepel)
+library(limma)
+library(gcookbook)
+library(scales)
+library(tibble)
+library(nlme)
 
 
 setwd(getwd())
@@ -229,7 +262,12 @@ table(metadata_rare$compartment)
 metadata_rare$compartment = factor(metadata_rare$compartment, levels = c("oral","lung","gut"))
 
 
-baseline_lung_metadata <- metadata_rare[which(metadata_rare$compartment == 'lung' & metadata_rare$studydayfollowup == "baseline"), ]
+baseline_lung_metadata <- metadata_rare[which(metadata_rare$compartment == 'lung' & metadata_rare$studydayfollowup == "baseline") & !is.na(metadata_rare$Mortality30Day) & !is.na(metadata_rare$Mortality60Day) & !is.na(metadata_rare$Mortality90Day), ]
+baseline_lung_metadata$Mortality90Day <- as.factor(baseline_lung_metadata$Mortality90Day)
+baseline_lung_metadata$Mortality60Day <- as.factor(baseline_lung_metadata$Mortality60Day)
+baseline_lung_metadata$Mortality30Day <- as.factor(baseline_lung_metadata$Mortality30Day)
+
+
 table(baseline_lung_metadata$studydayfollowup, baseline_lung_metadata$compartment)
 
 # Subset counts_rare to include only rows (sample_ids) present in baseline_lung_metadata
@@ -289,33 +327,33 @@ tse_transformed <- transformAssay(x=tse_transformed, method = "clr", pseudocount
 
 tse_abundance_transform <- transformAssay(tse, method = "relabundance")
 
-plotAbundanceDensity(
+plot(
   tse_abundance_transform, layout = "jitter",
   assay.type = "relabundance",
   n = 40, point_size=1, point_shape=19,
   point_alpha=0.1) +
   scale_x_log10(label=scales::percent)
 
-plotAbundanceDensity(
-  tse_abundance_transform, layout = "density",
-  assay.type = "relabundance",
-  n = 5, colour_by="Mortality30Day",
-  point_alpha=1/10) +
-  scale_x_log10()
+#plotAbundanceDensity(
+#  tse_abundance_transform, layout = "density",
+#  assay.type = "relabundance",
+#  n = 5, colour_by="Mortality30Day",
+#  point_alpha=1/10) +
+#  scale_x_log10()
 
-getPrevalence(
-  tse, detection = 1, sort = TRUE, assay.type = "counts",
-  as.relative = FALSE) |>
-  head()
+#getPrevalence(
+#  tse, detection = 1, sort = TRUE, assay.type = "counts",
+#  as.relative = FALSE) |>
+#  head()
 
 
 # Diversity Analysis
 
-tse <- estimateDiversity(
-  tse, abund_values="relabundance", index = "shannon", name="ShannonIndex")
+#tse <- estimateDiversity(
+#  tse, abund_values="relabundance", index = "shannon", name="ShannonIndex")
 
-tse <- estimateDiversity(
-  tse, abund_values="relabundance", index = "faith", name="Faith")
+#tse <- estimateDiversity(
+#  tse, abund_values="relabundance", index = "faith", name="Faith")
 
 ###  Beta Diversity Analysis using dimensional reduction techniques like PCA, PCoA, tSNE
 
@@ -323,9 +361,97 @@ set.seed(5252)
 
 tse <- transformAssay(tse, method = "relabundance")
 
-counts <- assay(tse, "counts")
-libsizes <- colSums(baseline_lung_counts)
-size.factors <- libsizes/mean(libsizes)
-logcounts(tse) <- log2(t(t(baseline_lung_counts)/size.factors) + 1)
+tse <- runPCA(tse, name = "PCA", assay.type = "counts")
 
-pca_data <- prcomp(t(logcounts(tse)), rank=50)
+tse <- runTSNE(tse, name = "TSNE", assay.type = "counts")
+
+tse <- runUMAP(
+  tse,
+  name = "UMAP",
+  assay.type = "counts",
+  ncomponents = 3)
+
+umap_plot = plotReducedDim(tse, "UMAP", colour_by = "Mortality90Day")
+pca_plot = plotReducedDim(tse, dimred="PCA", colour_by = "Mortality90Day")
+tsne_plot = plotReducedDim(tse, "TSNE", colour_by = "Mortality90Day")
+tsne_plot
+
+
+# PCoA analysis
+tse <- transformAssay(
+  tse, assay.type = "counts", method = "clr", pseudocount = TRUE)
+
+tse <- runMDS(
+  tse,
+  FUN = vegan::vegdist,
+  method = "bray",
+  assay.type = "relabundance",
+  name = "MDS_bray")
+
+p <- plotReducedDim(tse, "MDS_bray", colour_by = "Mortality90Day")
+
+e <- attr(reducedDim(tse, "MDS_bray"), "eig")
+rel_eig <- e / sum(e[e > 0])
+
+# Add explained variance for each axis
+p <- p + labs(
+  x = paste("PCoA 1 (", round(100 * rel_eig[[1]], 1), "%", ")", sep = ""),
+  y = paste("PCoA 2 (", round(100 * rel_eig[[2]], 1), "%", ")", sep = "")
+)
+
+p
+
+combined_plot <- p + pca_plot + tsne_plot + umap_plot + plot_layout(ncol = 2)
+combined_plot
+
+
+## Diversity Analysis on Subsetted Data
+###  Beta Diversity Analysis using dimensional reduction techniques like PCA, PCoA, tSNE
+
+set.seed(5252)
+
+tse_transformed <- transformAssay(tse_transformed, method = "relabundance")
+
+tse_transformed <- runPCA(tse_transformed, name = "PCA", assay.type = "counts")
+
+tse_transformed <- runTSNE(tse_transformed, name = "TSNE", assay.type = "counts")
+
+tse_transformed <- runUMAP(
+  tse_transformed,
+  name = "UMAP",
+  assay.type = "counts",
+  ncomponents = 3)
+
+umap_plot = plotReducedDim(tse_transformed, "UMAP", colour_by = "Mortality90Day")
+pca_plot = plotReducedDim(tse_transformed, dimred="PCA", colour_by = "Mortality90Day")
+tsne_plot = plotReducedDim(tse_transformed, "TSNE", colour_by = "Mortality90Day")
+tsne_plot
+
+
+# PCoA analysis
+tse_transformed <- transformAssay(
+  tse_transformed, assay.type = "counts", method = "clr", pseudocount = TRUE)
+
+tse_transformed <- runMDS(
+  tse_transformed,
+  FUN = vegan::vegdist,
+  method = "bray",
+  assay.type = "relabundance",
+  name = "MDS_bray")
+
+p <- plotReducedDim(tse_transformed, "MDS_bray", colour_by = "Mortality90Day")
+
+e <- attr(reducedDim(tse_transformed, "MDS_bray"), "eig")
+rel_eig <- e / sum(e[e > 0])
+
+# Add explained variance for each axis
+p <- p + labs(
+  x = paste("PCoA 1 (", round(100 * rel_eig[[1]], 1), "%", ")", sep = ""),
+  y = paste("PCoA 2 (", round(100 * rel_eig[[2]], 1), "%", ")", sep = "")
+)
+
+p
+
+combined_plot <- p + pca_plot + tsne_plot + umap_plot + plot_layout(ncol = 2)
+combined_plot
+
